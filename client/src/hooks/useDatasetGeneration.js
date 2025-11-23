@@ -83,6 +83,13 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
                 const captureUrl = await uploadImageToFal(captureImageUrl);
                 
                 imageUrls = [moonRefUrl, captureUrl];
+            } else if (sceneType === 'cat') {
+                // Cat: use only the capture image for first frame (creates night road scene)
+                console.log('🐱 Cat scene: Creating night road scene from capture');
+                console.log('📤 Uploading capture image...');
+                
+                const captureUrl = await uploadImageToFal(captureImageUrl);
+                imageUrls = [captureUrl];
             } else {
                 // Table: use only the capture image
                 console.log('🪑 Table scene: Using capture image for style generation');
@@ -171,7 +178,9 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
         }
     }, [saveGeneratedImage, batchImagePrompt]);
 
-    // Generate remaining images using reference image as style guide (PARALLEL)
+    // Generate remaining images using reference image as style guide
+    // Cat scene: SEQUENTIAL (previous frame as reference)
+    // Other scenes: PARALLEL in batches (first frame as reference)
     const generateBatchImages = useCallback(async (captureImages, startIndex = 1) => {
         if (!referenceImage) {
             console.error('❌ Reference image not available');
@@ -189,37 +198,114 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
         setProgress(0);
 
         try {
-            // Upload reference image once (will be reused for all)
-            console.log('📤 Uploading reference image to fal storage...');
-            const refUrl = await uploadImageToFal(referenceImage);
-            console.log('✅ Reference image uploaded');
-            
             // Important: Save the reference image (index 0) to backend if not already saved
-            // This ensures it's included in the final metadata
             console.log('💾 Ensuring reference image (index 0) is saved to backend...');
             await saveGeneratedImage(referenceImage, 0, false); // Don't include prompts again
 
-            // Create array of promises for parallel processing
-            const generatePromises = [];
-            for (let i = startIndex; i < captureImages.length; i++) {
-                generatePromises.push(
-                    generateSingleImage(captureImages[i], refUrl, i, totalToGenerate)
-                );
-            }
+            // Cat scene: Sequential generation (each uses previous frame as reference)
+            if (sceneType === 'cat') {
+                console.log('🐱 Cat scene: Using SEQUENTIAL generation (previous frame as reference)');
+                
+                let previousGeneratedUrl = referenceImage;
+                const results = [];
+                
+                for (let i = startIndex; i < captureImages.length; i++) {
+                    console.log(`🎨 [Image ${i}/${captureImages.length - 1}] Using previous frame as reference...`);
+                    
+                    try {
+                        // Upload previous generated image and current capture
+                        console.log(`📤 [Image ${i}] Uploading previous frame and current capture...`);
+                        const prevFrameUrl = await uploadImageToFal(previousGeneratedUrl);
+                        const captureUrl = await uploadImageToFal(captureImages[i]);
+                        
+                        console.log(`🚀 [Image ${i}] Calling Flux API...`);
+                        const generatedUrl = await generateWithFlux(batchImagePrompt, [prevFrameUrl, captureUrl]);
+                        
+                        console.log(`✅ [Image ${i}] Generated successfully!`);
+                        
+                        // Save to backend
+                        console.log(`💾 [Image ${i}] Saving to backend...`);
+                        await saveGeneratedImage(generatedUrl, i);
+                        console.log(`✅ [Image ${i}] Saved to backend`);
+                        
+                        // Update state
+                        setGeneratedImages(prev => ({
+                            ...prev,
+                            [i]: generatedUrl
+                        }));
+                        
+                        // Update previous frame for next iteration
+                        previousGeneratedUrl = generatedUrl;
+                        
+                        // Update progress
+                        const completed = i - startIndex + 1;
+                        const progressPercent = Math.round((completed / totalToGenerate) * 100);
+                        console.log(`📊 Progress: ${completed}/${totalToGenerate} (${progressPercent}%)`);
+                        setProgress(progressPercent);
+                        setCurrentlyProcessing(completed);
+                        
+                        results.push({ index: i, url: generatedUrl, success: true });
+                    } catch (err) {
+                        console.error(`❌ [Image ${i}] Error:`, err);
+                        results.push({ index: i, error: err.message, success: false });
+                    }
+                }
+                
+                const successCount = results.filter(r => r.success).length;
+                const failCount = results.filter(r => !r.success).length;
+                console.log(`✅ Sequential generation complete: ${successCount} succeeded, ${failCount} failed`);
+                
+                if (failCount > 0) {
+                    setError(`${failCount} image(s) failed to generate. Check console for details.`);
+                }
+            } else {
+                // Table/Moon scenes: Parallel batch generation (first frame as reference)
+                console.log('📦 Table/Moon scene: Using PARALLEL batch generation');
+                
+                // Upload reference image once (will be reused for all)
+                console.log('📤 Uploading reference image to fal storage...');
+                const refUrl = await uploadImageToFal(referenceImage);
+                console.log('✅ Reference image uploaded');
 
-            // Execute all generations in parallel
-            console.log(`🚀 Starting parallel generation of ${totalToGenerate} images...`);
-            const results = await Promise.all(generatePromises);
+                // Process images in batches of 10 to avoid overwhelming the API
+                const BATCH_SIZE = 10;
+                const results = [];
+                const totalImages = captureImages.length - startIndex;
+                
+                console.log(`🚀 Starting batch generation of ${totalImages} images (batches of ${BATCH_SIZE})...`);
+                
+                for (let batchStart = startIndex; batchStart < captureImages.length; batchStart += BATCH_SIZE) {
+                    const batchEnd = Math.min(batchStart + BATCH_SIZE, captureImages.length);
+                    const batchNumber = Math.floor((batchStart - startIndex) / BATCH_SIZE) + 1;
+                    const totalBatches = Math.ceil(totalImages / BATCH_SIZE);
+                    
+                    console.log(`📦 Processing batch ${batchNumber}/${totalBatches} (images ${batchStart}-${batchEnd - 1})`);
+                    
+                    // Create promises for this batch
+                    const batchPromises = [];
+                    for (let i = batchStart; i < batchEnd; i++) {
+                        batchPromises.push(
+                            generateSingleImage(captureImages[i], refUrl, i, totalToGenerate)
+                        );
+                    }
+                    
+                    // Execute this batch in parallel
+                    const batchResults = await Promise.all(batchPromises);
+                    results.push(...batchResults);
+                    
+                    console.log(`✅ Batch ${batchNumber}/${totalBatches} complete`);
+                }
 
-            // Check results
-            const successCount = results.filter(r => r.success).length;
-            const failCount = results.filter(r => !r.success).length;
+                // Check results
+                const successCount = results.filter(r => r.success).length;
+                const failCount = results.filter(r => !r.success).length;
 
-            console.log(`✅ Batch generation complete: ${successCount} succeeded, ${failCount} failed`);
+                console.log(`✅ Batch generation complete: ${successCount} succeeded, ${failCount} failed`);
 
-            if (failCount > 0) {
-                console.error(`❌ ${failCount} images failed to generate`);
-                setError(`${failCount} image(s) failed to generate. Check console for details.`);
+                if (failCount > 0) {
+                    console.error(`❌ ${failCount} images failed to generate`);
+                    setError(`${failCount} image(s) failed to generate. Check console for details.`);
+                }
             }
 
             setProgress(100);
@@ -230,7 +316,7 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
             setError(`Batch generation failed: ${err.message}`);
             setGenerationState('first-complete'); // Allow retry
         }
-    }, [referenceImage, generateSingleImage, saveGeneratedImage]);
+    }, [sceneType, referenceImage, generateSingleImage, saveGeneratedImage, batchImagePrompt]);
 
     // Load a specific generation by ID
     const loadGenerationById = useCallback(async (generationId) => {

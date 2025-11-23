@@ -252,6 +252,23 @@ const CapturesPage = () => {
                     >
                         Moon Scene
                     </button>
+                    <button
+                        onClick={() => setSelectedScene('cat')}
+                        style={{
+                            flex: 1,
+                            padding: '12px 20px',
+                            background: selectedScene === 'cat' ? '#2196F3' : '#e0e0e0',
+                            color: selectedScene === 'cat' ? 'white' : '#666',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontWeight: selectedScene === 'cat' ? 'bold' : 'normal',
+                            fontSize: '16px',
+                            transition: 'all 0.3s'
+                        }}
+                    >
+                        Cat Scene
+                    </button>
                 </div>
             </div>
 

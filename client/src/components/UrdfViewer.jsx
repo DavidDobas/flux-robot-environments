@@ -165,13 +165,19 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
             // Clear any existing scene objects (for scene switching or React StrictMode)
             const toRemove = [];
             viewer.scene.traverse((child) => {
+                // Check if it's a Gaussian splat viewer (includes moon 'splat_*' and cat 'cat_splat_*')
+                const isSplatViewer = child.name?.includes('splat_') && 
+                                     (child.dispose !== undefined || child.userData?.gaussianViewer !== undefined);
+                
                 // Remove grippable objects (cube, cup, splats)
-                if (child.name === 'cube' || child.name === 'cup' || child.name?.startsWith('splat_')) {
+                if (child.name === 'cube' || 
+                    child.name === 'cup' || 
+                    child.name?.startsWith('splat_') ||
+                    child.name?.startsWith('cat_splat_')) {
                     toRemove.push({ 
                         object: child, 
                         parent: child.parent,
-                        isGaussianSplatViewer: child.name?.startsWith('splat_') && 
-                                              (child.dispose !== undefined || child.userData?.gaussianViewer !== undefined)
+                        isGaussianSplatViewer: isSplatViewer
                     });
                 }
                 // Remove grid and axes helpers

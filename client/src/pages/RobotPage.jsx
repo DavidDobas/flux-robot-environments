@@ -11,11 +11,14 @@ const RobotPage = () => {
     const [sceneType, setSceneType] = useState('table');
     const [isCapturing, setIsCapturing] = useState(false);
     const [currentSessionId, setCurrentSessionId] = useState(null);
+    const [carMoving, setCarMoving] = useState(false);
 
     const urdfViewerRef = useRef(null);
     const jointValuesRef = useRef({});
     const captureIntervalRef = useRef(null);
     const lastPoseUpdateRef = useRef(0);
+    const carAnimationRef = useRef(null);
+    const carStartPositionRef = useRef(0.5); // Match initial position in catScene.js
 
     // Fixed camera pose for captures
     const fixedCameraPose = {
@@ -140,7 +143,92 @@ const RobotPage = () => {
             if (captureIntervalRef.current) {
                 clearInterval(captureIntervalRef.current);
             }
+            if (carAnimationRef.current) {
+                cancelAnimationFrame(carAnimationRef.current);
+            }
         };
+    }, []);
+
+    // Car movement animation (for cat scene)
+    const startCarMovement = useCallback(() => {
+        if (sceneType !== 'cat' || !urdfViewerRef.current) return;
+        
+        console.log('🚗 Starting car movement animation');
+        setCarMoving(true);
+        
+        const startZ = carStartPositionRef.current;
+        const endZ = 0;
+        const duration = 10000; // 10 seconds for slower, more visible movement
+        const startTime = Date.now();
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease-out cubic for smooth deceleration
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentZ = startZ + (endZ - startZ) * easeProgress;
+            
+            // Access the car Group and update its position (like gripping does)
+            const viewer = urdfViewerRef.current;
+            if (viewer && viewer.scene && viewer.renderer && viewer.camera) {
+                const carGroup = viewer.scene.getObjectByName('cat_splat_1');
+                if (carGroup) {
+                    // Move the Group directly (same as gripping)
+                    carGroup.position.z = currentZ;
+                    
+                    // Force matrix updates
+                    carGroup.updateMatrixWorld(true);
+                    
+                    // Force a render update
+                    viewer.renderer.render(viewer.scene, viewer.camera);
+                    
+                    carStartPositionRef.current = currentZ;
+                }
+            }
+            
+            if (progress < 1) {
+                carAnimationRef.current = requestAnimationFrame(animate);
+            } else {
+                console.log('🚗 Car movement complete at z=0');
+                setCarMoving(false);
+            }
+        };
+        
+        carAnimationRef.current = requestAnimationFrame(animate);
+    }, [sceneType]);
+
+    const resetCar = useCallback(() => {
+        console.log('🔄 Resetting car');
+        
+        // Stop animation
+        if (carAnimationRef.current) {
+            cancelAnimationFrame(carAnimationRef.current);
+            carAnimationRef.current = null;
+        }
+        
+        // Reset position to start
+        const viewer = urdfViewerRef.current;
+        if (viewer && viewer.scene && viewer.renderer && viewer.camera) {
+            const carGroup = viewer.scene.getObjectByName('cat_splat_1');
+            if (carGroup && carGroup.userData.initialPosition) {
+                const initialPos = carGroup.userData.initialPosition;
+                
+                // Reset Group position (same as gripping)
+                carGroup.position.set(initialPos[0], initialPos[1], initialPos[2]);
+                
+                // Force matrix updates
+                carGroup.updateMatrixWorld(true);
+                
+                // Force a render update
+                viewer.renderer.render(viewer.scene, viewer.camera);
+                
+                carStartPositionRef.current = initialPos[2];
+                console.log('🔄 Car reset to initial position z=' + initialPos[2]);
+            }
+        }
+        
+        setCarMoving(false);
     }, []);
 
     return (
@@ -187,6 +275,38 @@ const RobotPage = () => {
                         onStartCapture={startCapture}
                         onStopCapture={stopCapture}
                     />
+
+                    {/* Car Movement Control (Cat Scene Only) */}
+                    {sceneType === 'cat' && (
+                        <div style={{
+                            marginTop: '20px',
+                            padding: '15px',
+                            background: '#fff',
+                            borderRadius: '8px',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '10px', fontSize: '16px' }}>
+                                Car Animation
+                            </h3>
+                            <button
+                                onClick={carMoving ? resetCar : startCarMovement}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: carMoving ? '#ff9800' : '#4CAF50',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    fontSize: '14px',
+                                    transition: 'background 0.3s'
+                                }}
+                            >
+                                {carMoving ? '🔄 Reset' : '🚗 Start Car Movement'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Debug Panel (at bottom, collapsible) */}

@@ -7,8 +7,8 @@ import { addGrid, addAxes, addCube, addOBJModel } from './sceneObjects.js';
  */
 export async function addTableScene(scene) {
     // Add grid and axes
-    addGrid(scene);
-    addAxes(scene, 2);
+    // addGrid(scene);
+    // addAxes(scene, 2);
 
     // Add a small red cube near the robot base
     const cube = addCube(scene, {

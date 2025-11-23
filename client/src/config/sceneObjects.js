@@ -5,6 +5,7 @@ import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 import { GaussianSplatPLYLoader } from '../utils/GaussianSplatPLYLoader.js';
 import { addTableScene } from './tableScene.js';
 import { addMoonScene } from './moonScene.js';
+import { addCatScene } from './catScene.js';
 
 /**
  * Adds a grid helper to the scene
@@ -245,12 +246,14 @@ export function addPLYModel(scene, path, { position = [0, 0, 0], scale = 1, rota
  * Main scene loader - delegates to specific scene files
  * This is the main entry point for loading scenes
  * @param {THREE.Scene} scene - The Three.js scene
- * @param {string} sceneType - The scene type ('table' or 'moon')
+ * @param {string} sceneType - The scene type ('table', 'moon', or 'cat')
  * @returns {Object} References to grippable objects
  */
 export async function addSceneObjects(scene, sceneType = 'table') {
     if (sceneType === 'moon') {
         return await addMoonScene(scene);
+    } else if (sceneType === 'cat') {
+        return await addCatScene(scene);
     } else {
         return await addTableScene(scene);
     }

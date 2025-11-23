@@ -1,9 +1,9 @@
 import React from 'react';
 
 /**
- * Scene selector component for switching between table and moon scenes
+ * Scene selector component for switching between table, moon, and cat scenes
  * @param {Object} props
- * @param {string} props.sceneType - Current scene type ('table' or 'moon')
+ * @param {string} props.sceneType - Current scene type ('table', 'moon', or 'cat')
  * @param {Function} props.onChange - Callback when scene type changes
  */
 const SceneSelector = ({ sceneType, onChange }) => {
@@ -50,6 +50,22 @@ const SceneSelector = ({ sceneType, onChange }) => {
                     }}
                 >
                     Moon Scene
+                </button>
+                <button
+                    onClick={() => onChange('cat')}
+                    style={{
+                        flex: 1,
+                        padding: '10px',
+                        background: sceneType === 'cat' ? '#2196F3' : '#e0e0e0',
+                        color: sceneType === 'cat' ? 'white' : '#666',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: sceneType === 'cat' ? 'bold' : 'normal',
+                        transition: 'all 0.3s'
+                    }}
+                >
+                    Cat Scene
                 </button>
             </div>
         </div>

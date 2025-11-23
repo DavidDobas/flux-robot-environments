@@ -40,6 +40,7 @@ async function withMetadataLock(lockKey, operation) {
 const capturesDir = path.join(__dirname, '..', 'captures');
 const tableCapturesDir = path.join(capturesDir, 'table');
 const moonCapturesDir = path.join(capturesDir, 'moon');
+const catCapturesDir = path.join(capturesDir, 'cat');
 
 if (!fs.existsSync(capturesDir)) {
     fs.mkdirSync(capturesDir, { recursive: true });
@@ -49,6 +50,9 @@ if (!fs.existsSync(tableCapturesDir)) {
 }
 if (!fs.existsSync(moonCapturesDir)) {
     fs.mkdirSync(moonCapturesDir, { recursive: true });
+}
+if (!fs.existsSync(catCapturesDir)) {
+    fs.mkdirSync(catCapturesDir, { recursive: true });
 }
 
 // Serve static files from captures directory
@@ -68,8 +72,8 @@ app.post('/save-capture', (req, res) => {
         }
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type. Must be "table" or "moon"' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
         if (!sessionId) {
@@ -80,7 +84,7 @@ app.post('/save-capture', (req, res) => {
         const base64Data = imageData.replace(/^data:image\/png;base64,/, '');
 
         // Determine the base directory based on scene type
-        const baseDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const baseDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
         
         // Create session directory if it doesn't exist
         const sessionDir = path.join(baseDir, sessionId);
@@ -109,11 +113,11 @@ app.get('/sessions/:sceneType', (req, res) => {
         const { sceneType } = req.params;
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type. Must be "table" or "moon"' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
-        const targetDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const targetDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
 
         // Read directory
         if (!fs.existsSync(targetDir)) {
@@ -157,11 +161,11 @@ app.get('/sessions/:sceneType/:sessionId', (req, res) => {
         const { sceneType, sessionId } = req.params;
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type. Must be "table" or "moon"' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
-        const baseDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const baseDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
         const sessionDir = path.join(baseDir, sessionId);
 
         // Check if session exists
@@ -191,11 +195,11 @@ app.get('/sessions/:sceneType/:sessionId/generations', (req, res) => {
         const { sceneType, sessionId } = req.params;
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type. Must be "table" or "moon"' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
-        const baseDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const baseDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
         const generationsDir = path.join(baseDir, sessionId, 'generations');
 
         // Check if generations directory exists
@@ -244,11 +248,11 @@ app.get('/sessions/:sceneType/:sessionId/generations/:generationId', (req, res) 
         const { sceneType, sessionId, generationId } = req.params;
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type. Must be "table" or "moon"' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
-        const baseDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const baseDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
         const generationDir = path.join(baseDir, sessionId, 'generations', generationId);
 
         // Check if generation directory exists
@@ -303,11 +307,11 @@ app.post('/save-generated', async (req, res) => {
         }
 
         // Validate scene type
-        if (!['table', 'moon'].includes(sceneType)) {
-            return res.status(400).json({ error: 'Invalid scene type' });
+        if (!['table', 'moon', 'cat'].includes(sceneType)) {
+            return res.status(400).json({ error: 'Invalid scene type. Must be "table", "moon", or "cat"' });
         }
 
-        const baseDir = sceneType === 'moon' ? moonCapturesDir : tableCapturesDir;
+        const baseDir = sceneType === 'moon' ? moonCapturesDir : (sceneType === 'cat' ? catCapturesDir : tableCapturesDir);
         const sessionDir = path.join(baseDir, sessionId);
         const generationsDir = path.join(sessionDir, 'generations');
         const generationDir = path.join(generationsDir, generationId);

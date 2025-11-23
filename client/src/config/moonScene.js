@@ -125,8 +125,8 @@ const MOON_SCENE_SPLATS = [
  */
 export async function addMoonScene(scene) {
     // Add grid and axes
-    addGrid(scene);
-    addAxes(scene, 2);
+    // addGrid(scene);
+    // addAxes(scene, 2);
 
     console.log('Loading Gaussian splat files for moon scene with GaussianSplats3D...');
     
