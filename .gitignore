@@ -17,3 +17,5 @@ pnpm-debug.log*
 .vite
 # Mac system files
 .DS_Store
+# Camera captures
+captures/

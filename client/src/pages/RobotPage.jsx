@@ -6,6 +6,7 @@ const RobotPage = () => {
     const [wsConnected, setWsConnected] = useState(false);
     const [mockConnected, setMockConnected] = useState(false);
     const [wsStatus, setWsStatus] = useState('Disconnected');
+    const [cameraPose, setCameraPose] = useState(null);
 
     const urdfViewerRef = useRef(null);
     const jointValuesRef = useRef({});
@@ -184,6 +185,20 @@ const RobotPage = () => {
         setJoints(jointsData);
     }, []);
 
+    const onCameraPoseChange = React.useCallback((pose) => {
+        setCameraPose(pose);
+    }, []);
+
+    const captureCamera = useCallback(() => {
+        if (urdfViewerRef.current && urdfViewerRef.current.captureFromPose) {
+            const fixedPose = {
+                position: { x: 0.10, y: 0.49, z: -0.16 },
+                rotation: { x: -1.57, y: -0.46, z: -1.58 }
+            };
+            urdfViewerRef.current.captureFromPose(fixedPose);
+        }
+    }, []);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -203,6 +218,7 @@ const RobotPage = () => {
                     ref={urdfViewerRef}
                     urdfPath="/robot/so101_new_calib.urdf"
                     onJointsLoaded={onJointsLoaded}
+                    onCameraPoseChange={onCameraPoseChange}
                 />
             </div>
             <div style={{ width: '300px', padding: '20px', background: '#f5f5f5', overflowY: 'auto' }}>
@@ -309,6 +325,47 @@ const RobotPage = () => {
                     </div>
                 ))}
                 {Object.keys(joints).length === 0 && <p>Loading joints...</p>}
+
+                {/* Camera Pose Display */}
+                {cameraPose && (
+                    <div style={{ marginTop: '20px', padding: '15px', background: '#fff', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '10px', fontSize: '16px' }}>Camera Pose</h3>
+                        <div style={{ fontSize: '12px', fontFamily: 'monospace' }}>
+                            <div style={{ marginBottom: '8px' }}>
+                                <strong>Position:</strong>
+                                <div style={{ paddingLeft: '10px' }}>
+                                    <div>x: {cameraPose.position.x.toFixed(2)}</div>
+                                    <div>y: {cameraPose.position.y.toFixed(2)}</div>
+                                    <div>z: {cameraPose.position.z.toFixed(2)}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <strong>Rotation:</strong>
+                                <div style={{ paddingLeft: '10px' }}>
+                                    <div>x: {cameraPose.rotation.x.toFixed(2)}</div>
+                                    <div>y: {cameraPose.rotation.y.toFixed(2)}</div>
+                                    <div>z: {cameraPose.rotation.z.toFixed(2)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={captureCamera}
+                            style={{
+                                marginTop: '15px',
+                                padding: '10px 16px',
+                                background: '#2196F3',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                width: '100%'
+                            }}
+                        >
+                            Capture Camera
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
