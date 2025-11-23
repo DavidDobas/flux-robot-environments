@@ -48,9 +48,14 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
         return new Proxy(viewer, {
             get(target, prop) {
                 if (prop === 'captureFromPose') {
-                    return (pose) => {
+                    return (pose, sceneType = 'table', sessionId = null) => {
                         if (!target.scene || !target.renderer) {
                             console.error('Viewer not ready for capture');
+                            return;
+                        }
+
+                        if (!sessionId) {
+                            console.error('Session ID is required for capture');
                             return;
                         }
 
@@ -84,7 +89,7 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                         target.renderer.setClearColor(originalClearColor, originalClearAlpha);
 
                         // Send to backend to save
-                        const filename = `robot-capture-${Date.now()}.png`;
+                        const filename = `capture-${Date.now()}.png`;
                         fetch('http://localhost:3000/save-capture', {
                             method: 'POST',
                             headers: {
@@ -92,22 +97,21 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                             },
                             body: JSON.stringify({
                                 imageData: dataURL,
-                                filename: filename
+                                filename: filename,
+                                sceneType: sceneType,
+                                sessionId: sessionId
                             })
                         })
                             .then(response => response.json())
                             .then(data => {
                                 if (data.success) {
                                     console.log('Capture saved to:', data.path);
-                                    alert(`Image saved to captures/${data.filename}`);
                                 } else {
                                     console.error('Failed to save capture:', data.error);
-                                    alert('Failed to save image. Check console for details.');
                                 }
                             })
                             .catch(error => {
                                 console.error('Error saving capture:', error);
-                                alert('Error saving image. Is the server running?');
                             });
 
                         // Restore normal rendering
