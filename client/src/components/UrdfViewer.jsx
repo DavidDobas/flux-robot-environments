@@ -49,7 +49,7 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded }, ref) => {
             // Setup light
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
             directionalLight.position.set(10, 10, 10);
-            directionalLight.castShadow = true;
+            directionalLight.castShadow = false;
             viewer.scene.add(directionalLight);
 
             // Add scene objects (grid, axes, cube, etc.)
