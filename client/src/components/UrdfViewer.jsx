@@ -30,7 +30,7 @@ const registerUrdfManipulator = async () => {
     return registrationPromise;
 };
 
-const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseChange }, ref) => {
+const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseChange, sceneType = 'table' }, ref) => {
     const internalRef = useRef(null);
     const grippableObjectsRef = useRef({ cube: null, cup: null });
     const grippedObjectRef = useRef(null);
@@ -158,28 +158,72 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
             directionalLight.castShadow = false;
             viewer.scene.add(directionalLight);
 
-            // Clear any existing grippable objects from previous mounts (for React StrictMode)
-            // Always check the scene for duplicates, regardless of ref state
+            // Clear any existing scene objects (for scene switching or React StrictMode)
             const toRemove = [];
             viewer.scene.traverse((child) => {
-                if (child.name === 'cube' || child.name === 'cup') {
+                // Remove grippable objects (cube, cup, splats)
+                if (child.name === 'cube' || child.name === 'cup' || child.name?.startsWith('splat_')) {
+                    toRemove.push({ 
+                        object: child, 
+                        parent: child.parent,
+                        isGaussianSplatViewer: child.name?.startsWith('splat_') && 
+                                              (child.dispose !== undefined || child.userData?.gaussianViewer !== undefined)
+                    });
+                }
+                // Remove grid and axes helpers
+                if (child.name === 'scene-grid' || child.name === 'scene-axes') {
+                    toRemove.push({ object: child, parent: child.parent });
+                }
+                // Remove PLY point clouds (basic rendering)
+                if (child.type === 'Points' || child.name === 'gaussian-splat-points') {
                     toRemove.push({ object: child, parent: child.parent });
                 }
             });
             if (toRemove.length > 0) {
-                console.log(`Cleaning up ${toRemove.length} existing objects from previous mount...`);
-                toRemove.forEach(({ object, parent }) => {
+                console.log(`Cleaning up ${toRemove.length} existing objects before loading new scene...`);
+                toRemove.forEach(({ object, parent, isGaussianSplatViewer }) => {
                     if (parent) {
                         parent.remove(object);
-                        console.log(`Removed existing ${object.name} (${object.uuid}) from scene`);
+                        
+                        // Properly dispose GaussianSplats3D viewer (might be wrapped in Group)
+                        if (isGaussianSplatViewer) {
+                            console.log(`Disposing GaussianSplats3D viewer: ${object.name}`);
+                            try {
+                                // Check if viewer is in userData (wrapped in Group)
+                                const viewer = object.userData?.gaussianViewer || object;
+                                if (viewer.dispose) {
+                                    viewer.dispose();
+                                }
+                            } catch (error) {
+                                console.warn('Error disposing viewer:', error);
+                            }
+                        } else {
+                            // Dispose geometry and material for regular objects
+                            if (object.geometry) object.geometry.dispose();
+                            if (object.material) {
+                                if (Array.isArray(object.material)) {
+                                    object.material.forEach(mat => mat.dispose());
+                                } else {
+                                    object.material.dispose();
+                                }
+                            }
+                        }
+                        console.log(`Removed existing ${object.name || object.type} (${object.uuid}) from scene`);
                     }
                 });
             }
             
             // Add scene objects (grid, axes, cube, etc.) and store references
-            const objects = await addSceneObjects(viewer.scene);
+            const objects = await addSceneObjects(viewer.scene, sceneType);
             grippableObjectsRef.current = objects;
             console.log('Grippable objects loaded:', Object.keys(objects).filter(k => objects[k]));
+            console.log('Grippable object details:', Object.entries(objects).map(([key, obj]) => ({
+                key,
+                name: obj?.name,
+                type: obj?.type,
+                hasPosition: !!obj?.position,
+                hasGetWorldPosition: typeof obj?.getWorldPosition === 'function'
+            })));
             
             // Debug: Check scene for duplicate objects
             const sceneObjects = [];
@@ -257,7 +301,19 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                 gripperLink.getWorldPosition(gripperPos);
 
                 const objectPos = new THREE.Vector3();
-                object.getWorldPosition(objectPos);
+                
+                // Ensure world matrix is up to date (important for DropInViewer objects)
+                if (object.updateMatrixWorld) {
+                    object.updateMatrixWorld(true);
+                }
+                
+                // Try to get world position
+                try {
+                    object.getWorldPosition(objectPos);
+                } catch {
+                    // Fallback to object position if getWorldPosition fails
+                    objectPos.copy(object.position);
+                }
 
                 // Simple distance-based collision detection
                 const distance = gripperPos.distanceTo(objectPos);
@@ -449,11 +505,11 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                         if (!grippedObjectRef.current) {
                             // Check each grippable object
                             let debugDistances = [];
-                            for (const [_key, object] of Object.entries(grippableObjectsRef.current)) {
+                            for (const [key, object] of Object.entries(grippableObjectsRef.current)) {
                                 if (object) {
                                     const result = isGripperTouchingObject(gripperLink, object);
                                     if (result !== false) {
-                                        console.log(`Distance to ${object.name}: ${result.toFixed(4)} - GRIPPING!`);
+                                        console.log(`Distance to ${object.name} (${key}): ${result.toFixed(4)} - GRIPPING!`);
                                         
                                         // Debug: Count objects before gripping and check structure
                                         const beforeCount = { cube: 0, cup: 0, cubeUUIDs: [], cupUUIDs: [] };
@@ -539,13 +595,23 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                                         const gripperPos = new THREE.Vector3();
                                         gripperLink.getWorldPosition(gripperPos);
                                         const objectPos = new THREE.Vector3();
-                                        object.getWorldPosition(objectPos);
+                                        
+                                        // Update world matrix and get position safely
+                                        if (object.updateMatrixWorld) {
+                                            object.updateMatrixWorld(true);
+                                        }
+                                        try {
+                                            object.getWorldPosition(objectPos);
+                                        } catch {
+                                            objectPos.copy(object.position);
+                                        }
+                                        
                                         const actualDist = gripperPos.distanceTo(objectPos);
-                                        debugDistances.push(`${object.name}: ${actualDist.toFixed(4)}`);
+                                        debugDistances.push(`${key}(${object.name}): ${actualDist.toFixed(4)}`);
                                     }
                                 }
                             }
-                            if (debugDistances.length > 0 && Math.random() < 0.1) { // Log occasionally to avoid spam
+                            if (debugDistances.length > 0 && Math.random() < 0.05) { // Log occasionally to avoid spam
                                 console.log('Gripper closed but not touching. Distances:', debugDistances.join(', '));
                             }
                         }
@@ -616,7 +682,7 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
         };
 
         setupViewer();
-    }, [urdfPath, onJointsLoaded, onCameraPoseChange]);
+    }, [urdfPath, onJointsLoaded, onCameraPoseChange, sceneType]);
 
     return (
         <urdf-viewer

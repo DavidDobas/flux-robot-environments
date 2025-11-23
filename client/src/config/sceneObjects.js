@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
+import { GaussianSplatPLYLoader } from '../utils/GaussianSplatPLYLoader.js';
+import { addTableScene } from './tableScene.js';
+import { addMoonScene } from './moonScene.js';
 
 /**
  * Adds a grid helper to the scene
@@ -180,72 +184,74 @@ export function addOBJModel(scene, path, { position = [0, 0, 0], scale = 1, rota
 }
 
 /**
- * Adds all scene objects (grid, axes, cube, and FBX models if available)
+ * Loads and adds a PLY model (Gaussian splat) to the scene
+ * Uses custom loader to properly parse spherical harmonics color data
  * @param {THREE.Scene} scene - The Three.js scene
+ * @param {string} path - Path to the PLY file
+ * @param {Object} options - Model options
+ * @param {number[]} options.position - [x, y, z] position
+ * @param {number} options.scale - Scale factor
+ * @param {number[]} options.rotation - [x, y, z] rotation in radians
+ * @returns {Promise<THREE.Object3D>} The loaded model
+ */
+export function addPLYModel(scene, path, { position = [0, 0, 0], scale = 1, rotation = [0, 0, 0] } = {}) {
+    return new Promise((resolve, reject) => {
+        const loader = new GaussianSplatPLYLoader();
+        loader.load(
+            path,
+            (geometry) => {
+                // Geometry already has position and color attributes from custom loader
+                console.log('Gaussian splat PLY loaded with', geometry.attributes.position.count, 'points');
+
+                // Create point material for visualization
+                const material = new THREE.PointsMaterial({
+                    size: 0.02,  // Visible point size
+                    vertexColors: true,
+                    sizeAttenuation: true,
+                    transparent: false,
+                    depthWrite: true,
+                    depthTest: true
+                });
+
+                const points = new THREE.Points(geometry, material);
+                points.position.set(position[0], position[1], position[2]);
+                points.scale.setScalar(scale);
+                points.rotation.set(rotation[0], rotation[1], rotation[2]);
+                points.name = 'gaussian-splat-points';
+                
+                // Enable shadows for point clouds
+                points.castShadow = true;
+                points.receiveShadow = true;
+
+                scene.add(points);
+                console.log('Added Gaussian splat point cloud to scene');
+                resolve(points);
+            },
+            (progress) => {
+                if (progress && progress.lengthComputable) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                    console.log(`Loading ${path}: ${percent}%`);
+                }
+            },
+            (error) => {
+                console.error(`Error loading PLY model from ${path}:`, error);
+                reject(error);
+            }
+        );
+    });
+}
+
+/**
+ * Main scene loader - delegates to specific scene files
+ * This is the main entry point for loading scenes
+ * @param {THREE.Scene} scene - The Three.js scene
+ * @param {string} sceneType - The scene type ('table' or 'moon')
  * @returns {Object} References to grippable objects
  */
-export async function addSceneObjects(scene) {
-    // Add grid and axes
-    addGrid(scene);
-    addAxes(scene, 2);
-
-    // Add a small red cube near the robot base
-    const cube = addCube(scene, {
-        position: [0.2, 0.025, -0.1],
-        size: 0.05,
-        color: 0xff6b6b
-    });
-    cube.name = 'cube'; // Name for identification
-
-    // Try to load FBX models if they exist
-    // Note: Add cube.fbx and mug.fbx to /public/assets/ directory
-    // Uncomment the code below once you have valid FBX files
-
-    // try {
-    //     await addFBXModel(scene, '/assets/cube.fbx', {
-    //         position: [0.3, 0.05, 0.1],
-    //         scale: 0.0001, // Adjust scale as needed
-    //     });
-    // } catch (error) {
-    //     console.log('cube.fbx not found or failed to load');
-    // }
-
-    // try {
-    //     await addFBXModel(scene, '/assets/mug.fbx', {
-    //         position: [-0.2, 0.05, 0.15],
-    //         scale: 0.0001, // Adjust scale as needed
-    //     });
-    // } catch (error) {
-    //     console.log('mug.fbx not found or failed to load');
-    // }
-
-    // Add cup from OBJ file
-    console.log('Attempting to load cup.obj from /assets/cup.obj');
-    let cup = null;
-    try {
-        cup = await addOBJModel(scene, '/assets/cup.obj', {
-            position: [0.3, 0, 0.15], // Y will be auto-calculated
-            scale: 0.01,
-            color: 0x8899aa, // Greyish-blue color
-            placeOnGround: true // Automatically place on ground
-        });
-        cup.name = 'cup'; // Name for identification
-        
-        // Ensure all children also have the name set for proper identification
-        cup.traverse((child) => {
-            if (child.isMesh) {
-                child.userData.parentName = 'cup';
-            }
-        });
-        
-        console.log('Cup loaded successfully. Structure:', cup.type, 'Children:', cup.children.length);
-    } catch (error) {
-        console.error('cup.obj loading error:', error);
+export async function addSceneObjects(scene, sceneType = 'table') {
+    if (sceneType === 'moon') {
+        return await addMoonScene(scene);
+    } else {
+        return await addTableScene(scene);
     }
-
-    // Return references to grippable objects
-    return {
-        cube,
-        cup
-    };
 }

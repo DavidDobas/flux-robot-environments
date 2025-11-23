@@ -12,6 +12,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@fal-ai/client": "^1.7.2",
+    "@mkkellogg/gaussian-splats-3d": "^0.4.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6",
