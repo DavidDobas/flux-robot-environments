@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { addSceneObjects } from '../config/sceneObjects.js';
 
 // We need to import the urdf-manipulator element definition to register it
 let registrationPromise = null;
@@ -50,6 +51,14 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded }, ref) => {
             directionalLight.position.set(10, 10, 10);
             directionalLight.castShadow = true;
             viewer.scene.add(directionalLight);
+
+            // Add scene objects (grid, axes, cube, etc.)
+            addSceneObjects(viewer.scene);
+
+            // Ensure renderer uses correct output color space
+            if (viewer.renderer) {
+                viewer.renderer.outputColorSpace = THREE.SRGBColorSpace;
+            }
 
             // Load mesh function
             viewer.loadMeshFunc = (path, manager, done) => {
