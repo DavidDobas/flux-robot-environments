@@ -62,11 +62,21 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                         tempCamera.rotation.set(pose.rotation.x, pose.rotation.y, pose.rotation.z);
                         tempCamera.updateMatrixWorld();
 
+                        // Set white background for capture
+                        const originalClearColor = new THREE.Color();
+                        target.renderer.getClearColor(originalClearColor);
+                        const originalClearAlpha = target.renderer.getClearAlpha();
+
+                        target.renderer.setClearColor(0xffffff, 1);
+
                         // Render the scene from this camera
                         target.renderer.render(target.scene, tempCamera);
 
                         // Capture the image
                         const dataURL = target.renderer.domElement.toDataURL('image/png');
+
+                        // Restore original background
+                        target.renderer.setClearColor(originalClearColor, originalClearAlpha);
 
                         // Send to backend to save
                         const filename = `robot-capture-${Date.now()}.png`;
@@ -99,7 +109,12 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
                         target.renderer.render(target.scene, target.camera);
                     };
                 }
-                return target[prop];
+
+                const value = target[prop];
+                if (typeof value === 'function') {
+                    return value.bind(target);
+                }
+                return value;
             }
         });
     }, []);
@@ -224,6 +239,9 @@ const UrdfViewer = React.forwardRef(({ urdfPath, onJointsLoaded, onCameraPoseCha
 
             return () => {
                 viewer.removeEventListener('urdf-processed', handleUrdfProcessed);
+                if (viewer.controls) {
+                    viewer.controls.removeEventListener('change', updateCameraPose);
+                }
             };
         };
 

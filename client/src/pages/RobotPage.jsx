@@ -185,8 +185,13 @@ const RobotPage = () => {
         setJoints(jointsData);
     }, []);
 
+    const lastPoseUpdateRef = useRef(0);
     const onCameraPoseChange = React.useCallback((pose) => {
-        setCameraPose(pose);
+        const now = Date.now();
+        if (now - lastPoseUpdateRef.current > 200) {
+            setCameraPose(pose);
+            lastPoseUpdateRef.current = now;
+        }
     }, []);
 
     const captureCamera = useCallback(() => {
