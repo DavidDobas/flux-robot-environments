@@ -7,7 +7,14 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
  * @param {THREE.Scene} scene - The Three.js scene
  */
 export function addGrid(scene) {
+    // Remove any existing grid first
+    const existingGrid = scene.getObjectByName('scene-grid');
+    if (existingGrid) {
+        scene.remove(existingGrid);
+    }
+    
     const gridHelper = new THREE.GridHelper(10, 10, 0x888888, 0x444444);
+    gridHelper.name = 'scene-grid';
     scene.add(gridHelper);
 }
 
@@ -17,7 +24,14 @@ export function addGrid(scene) {
  * @param {number} size - Length of the axes (default: 2)
  */
 export function addAxes(scene, size = 2) {
+    // Remove any existing axes first
+    const existingAxes = scene.getObjectByName('scene-axes');
+    if (existingAxes) {
+        scene.remove(existingAxes);
+    }
+    
     const axesHelper = new THREE.AxesHelper(size);
+    axesHelper.name = 'scene-axes';
     scene.add(axesHelper);
 }
 
@@ -168,6 +182,7 @@ export function addOBJModel(scene, path, { position = [0, 0, 0], scale = 1, rota
 /**
  * Adds all scene objects (grid, axes, cube, and FBX models if available)
  * @param {THREE.Scene} scene - The Three.js scene
+ * @returns {Object} References to grippable objects
  */
 export async function addSceneObjects(scene) {
     // Add grid and axes
@@ -175,11 +190,12 @@ export async function addSceneObjects(scene) {
     addAxes(scene, 2);
 
     // Add a small red cube near the robot base
-    addCube(scene, {
+    const cube = addCube(scene, {
         position: [0.2, 0.025, -0.1],
         size: 0.05,
         color: 0xff6b6b
     });
+    cube.name = 'cube'; // Name for identification
 
     // Try to load FBX models if they exist
     // Note: Add cube.fbx and mug.fbx to /public/assets/ directory
@@ -205,15 +221,31 @@ export async function addSceneObjects(scene) {
 
     // Add cup from OBJ file
     console.log('Attempting to load cup.obj from /assets/cup.obj');
+    let cup = null;
     try {
-        await addOBJModel(scene, '/assets/cup.obj', {
+        cup = await addOBJModel(scene, '/assets/cup.obj', {
             position: [0.3, 0, 0.15], // Y will be auto-calculated
             scale: 0.01,
             color: 0x8899aa, // Greyish-blue color
             placeOnGround: true // Automatically place on ground
         });
-        console.log('Cup loaded successfully');
+        cup.name = 'cup'; // Name for identification
+        
+        // Ensure all children also have the name set for proper identification
+        cup.traverse((child) => {
+            if (child.isMesh) {
+                child.userData.parentName = 'cup';
+            }
+        });
+        
+        console.log('Cup loaded successfully. Structure:', cup.type, 'Children:', cup.children.length);
     } catch (error) {
         console.error('cup.obj loading error:', error);
     }
+
+    // Return references to grippable objects
+    return {
+        cube,
+        cup
+    };
 }
