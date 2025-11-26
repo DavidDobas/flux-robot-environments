@@ -57,6 +57,12 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
             batchImages: batchImagePrompt
         } : null;
 
+        if (isFirst && prompts) {
+            console.log('📝 Passing prompts to backend for index 0:', prompts);
+        } else if (index === 0 && !prompts) {
+            console.log('⚠️ Saving index 0 without prompts (isFirst =', isFirst, ')');
+        }
+
         await saveImageToBackend(imageUrl, sessionId, sceneType, index, currentGenerationId, prompts);
     }, [sessionId, sceneType, currentGenerationId, firstImagePrompt, batchImagePrompt]);
 
@@ -199,8 +205,9 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
 
         try {
             // Important: Save the reference image (index 0) to backend if not already saved
-            console.log('💾 Ensuring reference image (index 0) is saved to backend...');
-            await saveGeneratedImage(referenceImage, 0, false); // Don't include prompts again
+            // AND save prompts to metadata at the start of batch generation
+            console.log('💾 Ensuring reference image (index 0) is saved with prompts to backend...');
+            await saveGeneratedImage(referenceImage, 0, true); // Include prompts for batch generation
 
             // Cat scene: Sequential generation (each uses previous frame as reference)
             if (sceneType === 'cat') {
@@ -259,13 +266,22 @@ export const useDatasetGeneration = (sessionId, sceneType) => {
                     setError(`${failCount} image(s) failed to generate. Check console for details.`);
                 }
             } else {
-                // Table/Moon scenes: Parallel batch generation (first frame as reference)
+                // Table/Moon scenes: Parallel batch generation
                 console.log('📦 Table/Moon scene: Using PARALLEL batch generation');
                 
                 // Upload reference image once (will be reused for all)
-                console.log('📤 Uploading reference image to fal storage...');
-                const refUrl = await uploadImageToFal(referenceImage);
-                console.log('✅ Reference image uploaded');
+                let refUrl;
+                if (sceneType === 'moon') {
+                    // Moon: use moon_no_objects.png for ALL images (consistent style)
+                    console.log('📤 Uploading moon_no_objects.png as reference for batch...');
+                    refUrl = await uploadImageToFal(window.location.origin + MOON_REFERENCE_IMAGE);
+                    console.log('✅ Moon reference image uploaded');
+                } else {
+                    // Table: use first generated image as reference
+                    console.log('📤 Uploading first generated image as reference...');
+                    refUrl = await uploadImageToFal(referenceImage);
+                    console.log('✅ Reference image uploaded');
+                }
 
                 // Process images in batches of 10 to avoid overwhelming the API
                 const BATCH_SIZE = 10;

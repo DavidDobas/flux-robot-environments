@@ -60,3 +60,4 @@ const JointControls = ({ joints, onChange, disabled = false }) => {
 
 export default JointControls;
 
+

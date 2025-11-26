@@ -362,10 +362,14 @@ app.post('/save-generated', async (req, res) => {
                         metadata.totalImages = Object.keys(metadata.images).length;
                         metadata.lastUpdated = new Date().toISOString();
                         
-                        // Store prompts (only on first image save)
+                        // Store prompts (only when provided for first image)
                         if (prompts && index === 0) {
                             metadata.prompts = prompts;
-                            console.log('Saved prompts to metadata:', prompts);
+                            console.log('✅ Saved prompts to metadata:', prompts);
+                        } else if (index === 0 && metadata.prompts) {
+                            console.log('✅ Preserving existing prompts in metadata');
+                        } else if (index === 0) {
+                            console.log('⚠️ No prompts provided for index 0');
                         }
                         
                         // Determine state based on images
